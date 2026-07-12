@@ -1,5 +1,4 @@
 using CompScienceMeshes
-using BEAST
 using NestedCrossApproximation
 using AdaptiveCrossApproximation
 using LinearAlgebra
@@ -8,15 +7,8 @@ using OhMyThreads
 using CSV, DataFrames
 using StaticArrays
 include("poweriteration.jl")
-include("orientations.jl")
 
-# New ACA/NCA interface (TreeMimicryPivoting2 + DirectionFilter). Orientation
-# extraction (edge directions / face normals) and the orientation-id /
-# node-normal-set helpers now live in the packages; the BEAST-specific
-# `rwgorientations` is provided by the ACABEAST extension. Renames vs. the old
-# interface: iACA -> IACA, OversampIFNormEst(tol) -> PhaseExtrapolator(tol).
-
-function simfull(
+function simfailure(
     filename,
     op,
     tspace,
@@ -28,52 +20,27 @@ function simfull(
     γ=1.0,
     scheduler=DynamicScheduler(),
 )
-    tedges, tnormals = AdaptiveCrossApproximation.rwgorientations(tspace)
-    sedges, snormals = AdaptiveCrossApproximation.rwgorientations(sspace)
-    tedgeids, tnormalids, tnedgeids, tnnormalids = AdaptiveCrossApproximation.basisfunction_orientation_ids(
-        tedges, tnormals
-    )
-    sedgeids, snormalids, snedgeids, snnormalids = AdaptiveCrossApproximation.basisfunction_orientation_ids(
-        sedges, snormals
-    )
-    trial_node_normal_sets, trialnormalids, ntrialnormalids = AdaptiveCrossApproximation.node_normal_orientation_sets(
-        snormals, tree.trialcluster
-    )
-    test_node_normal_sets, testnormalids, ntestnormalids = AdaptiveCrossApproximation.node_normal_orientation_sets(
-        tnormals, tree.testcluster
-    )
-
     th2mat = @elapsed h2mat = NestedCrossApproximation.PetrovGalerkinNCA(
         op,
         tspace,
         sspace,
         tree;
         testcompressor=NestedCrossApproximation.BottomUp(;
-            factorization=IACA(
+            factorization=iACA(
                 MaximumValue(),
-                AdaptiveCrossApproximation.TreeMimicryPivoting2(
-                    tspace.pos,
-                    sspace.pos,
-                    sedgeids,
-                    trialnormalids,
-                    trial_node_normal_sets,
-                    tree.trialcluster,
+                AdaptiveCrossApproximation.TreeMimicryPivoting(
+                    tspace.pos, sspace.pos, tree.trialcluster
                 ),
-                PhaseExtrapolator(tol),
+                FNormExtrapolator(iFNormEstimator(tol)),
             ),
         ),
         trialcompressor=NestedCrossApproximation.BottomUp(;
-            factorization=IACA(
-                AdaptiveCrossApproximation.TreeMimicryPivoting2(
-                    sspace.pos,
-                    tspace.pos,
-                    tedgeids,
-                    testnormalids,
-                    test_node_normal_sets,
-                    tree.testcluster,
+            factorization=iACA(
+                AdaptiveCrossApproximation.TreeMimicryPivoting(
+                    sspace.pos, tspace.pos, tree.testcluster
                 ),
                 MaximumValue(),
-                PhaseExtrapolator(tol),
+                FNormExtrapolator(iFNormEstimator(tol)),
             ),
         ),
         maxrank=50,
@@ -89,12 +56,7 @@ function simfull(
         isnear=isnear,
         maxrank=50,
         spaceordering=AdaptiveCrossApproximation.PreserveSpaceOrder(),
-        compressor=ACA(;
-            convergence=AdaptiveCrossApproximation.CombinedConvCrit([
-                FNormEstimator(1e-2),
-                AdaptiveCrossApproximation.RandomSampling(; tol=8e-3, factor=1.0),
-            ]),
-        ),
+        compressor=ACA(; tol=tol),
         scheduler=StaticScheduler(),
     )
 
@@ -115,9 +77,9 @@ function simfull(
         scheduler=scheduler,
     )
 
-    farh2mat = h2mat#NestedCrossApproximation.farmatrix(h2mat)
-    farhmat = hmat#AdaptiveCrossApproximation.farmatrix(hmat)
-    refmat = refmat#AdaptiveCrossApproximation.farmatrix(refmat)
+    farh2mat = NestedCrossApproximation.farmatrix(h2mat)
+    farhmat = AdaptiveCrossApproximation.farmatrix(hmat)
+    refmat = AdaptiveCrossApproximation.farmatrix(refmat)
 
     x = rand(eltype(hmat), length(sspace))
     println(norm(h2mat * x - hmat * x) / norm(hmat * x))

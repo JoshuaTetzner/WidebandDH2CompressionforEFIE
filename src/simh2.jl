@@ -1,5 +1,4 @@
 using CompScienceMeshes
-using BEAST
 using NestedCrossApproximation
 using AdaptiveCrossApproximation
 using LinearAlgebra
@@ -10,13 +9,7 @@ using StaticArrays
 include("poweriteration.jl")
 include("orientations.jl")
 
-# New ACA/NCA interface (TreeMimicryPivoting2 + DirectionFilter). Orientation
-# extraction (edge directions / face normals) and the orientation-id /
-# node-normal-set helpers now live in the packages; the BEAST-specific
-# `rwgorientations` is provided by the ACABEAST extension. Renames vs. the old
-# interface: iACA -> IACA, OversampIFNormEst(tol) -> PhaseExtrapolator(tol).
-
-function simfull(
+function simh2(
     filename,
     op,
     tspace,
@@ -28,19 +21,19 @@ function simfull(
     γ=1.0,
     scheduler=DynamicScheduler(),
 )
-    tedges, tnormals = AdaptiveCrossApproximation.rwgorientations(tspace)
-    sedges, snormals = AdaptiveCrossApproximation.rwgorientations(sspace)
-    tedgeids, tnormalids, tnedgeids, tnnormalids = AdaptiveCrossApproximation.basisfunction_orientation_ids(
+    tedges, tnormals = rwg_orientations(tspace)
+    sedges, snormals = rwg_orientations(sspace)
+    tedgeids, tnormalids, tnedgeids, tnnormalids = NestedCrossApproximation.basisfunction_orientation_ids(
         tedges, tnormals
     )
-    sedgeids, snormalids, snedgeids, snnormalids = AdaptiveCrossApproximation.basisfunction_orientation_ids(
+    sedgeids, snormalids, snedgeids, snnormalids = NestedCrossApproximation.basisfunction_orientation_ids(
         sedges, snormals
     )
-    trial_node_normal_sets, trialnormalids, ntrialnormalids = AdaptiveCrossApproximation.node_normal_orientation_sets(
-        snormals, tree.trialcluster
+    trial_node_normal_sets, trialnormalids, ntrialnormalids = NestedCrossApproximation.node_normal_orientation_sets(
+        tnormals, tree.trialcluster
     )
-    test_node_normal_sets, testnormalids, ntestnormalids = AdaptiveCrossApproximation.node_normal_orientation_sets(
-        tnormals, tree.testcluster
+    test_node_normal_sets, testnormalids, ntestnormalids = NestedCrossApproximation.node_normal_orientation_sets(
+        snormals, tree.testcluster
     )
 
     th2mat = @elapsed h2mat = NestedCrossApproximation.PetrovGalerkinNCA(
@@ -49,7 +42,7 @@ function simfull(
         sspace,
         tree;
         testcompressor=NestedCrossApproximation.BottomUp(;
-            factorization=IACA(
+            factorization=iACA(
                 MaximumValue(),
                 AdaptiveCrossApproximation.TreeMimicryPivoting2(
                     tspace.pos,
@@ -59,11 +52,11 @@ function simfull(
                     trial_node_normal_sets,
                     tree.trialcluster,
                 ),
-                PhaseExtrapolator(tol),
+                OversampIFNormEst(tol),
             ),
         ),
         trialcompressor=NestedCrossApproximation.BottomUp(;
-            factorization=IACA(
+            factorization=iACA(
                 AdaptiveCrossApproximation.TreeMimicryPivoting2(
                     sspace.pos,
                     tspace.pos,
@@ -73,29 +66,12 @@ function simfull(
                     tree.testcluster,
                 ),
                 MaximumValue(),
-                PhaseExtrapolator(tol),
+                OversampIFNormEst(tol),
             ),
         ),
         maxrank=50,
         isnear=isnear,
         scheduler=scheduler,
-    )
-
-    @time thmat = @elapsed hmat = AdaptiveCrossApproximation.HMatrix(
-        op,
-        tspace,
-        sspace,
-        tree;
-        isnear=isnear,
-        maxrank=50,
-        spaceordering=AdaptiveCrossApproximation.PreserveSpaceOrder(),
-        compressor=ACA(;
-            convergence=AdaptiveCrossApproximation.CombinedConvCrit([
-                FNormEstimator(1e-2),
-                AdaptiveCrossApproximation.RandomSampling(; tol=8e-3, factor=1.0),
-            ]),
-        ),
-        scheduler=StaticScheduler(),
     )
 
     @time refmat = AdaptiveCrossApproximation.HMatrix(
@@ -115,29 +91,20 @@ function simfull(
         scheduler=scheduler,
     )
 
-    farh2mat = h2mat#NestedCrossApproximation.farmatrix(h2mat)
-    farhmat = hmat#AdaptiveCrossApproximation.farmatrix(hmat)
-    refmat = refmat#AdaptiveCrossApproximation.farmatrix(refmat)
+    farh2mat = NestedCrossApproximation.farmatrix(h2mat)
+    refmat = AdaptiveCrossApproximation.farmatrix(refmat)
 
-    x = rand(eltype(hmat), length(sspace))
-    println(norm(h2mat * x - hmat * x) / norm(hmat * x))
-    println(norm(farh2mat * x - farhmat * x) / norm(farhmat * x))
+    x = rand(eltype(h2mat), length(sspace))
     y = h2mat * x
     tmvh2mat = Float64[]
-    tmvhmat = Float64[]
     for _ in 1:15
         tt = @elapsed y = h2mat * x
-        th = @elapsed y = hmat * x
-        push!(tmvhmat, th)
         push!(tmvh2mat, tt)
     end
     tmvh2mat = minimum(tmvh2mat)
-    tmvhmat = minimum(tmvhmat)
 
     farerrh2mat = estimate_reldifference(farh2mat, refmat; tol=tol * 1e-1)
-    farerrhmat = estimate_reldifference(farhmat, refmat; tol=tol * 1e-1)
     storh2mat = NestedCrossApproximation.storage(h2mat)
-    storhmat = AdaptiveCrossApproximation.storage(hmat)
 
     df = DataFrame(;
         k=isnear.k,
@@ -146,13 +113,9 @@ function simfull(
         tol=tol,
         N=length(tspace),
         th2mat=th2mat,
-        thmat=thmat,
         tmvh2mat=tmvh2mat,
-        tmvhmat=tmvhmat,
         storh2mat=storh2mat,
-        storhmat=storhmat,
         farerrh2mat=farerrh2mat,
-        farerrhmat=farerrhmat,
     )
 
     return CSV.write(filename, df; append=true, header=false)

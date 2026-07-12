@@ -13,7 +13,7 @@ include(pwd() * "/src/simfull.jl")
 include(pwd() * "/src/geo.jl")
 
 γ = 1.0
-ηhf = 5.0
+ηhf = 2.0
 tol = 1e-3
 
 df = DataFrame(;
@@ -32,26 +32,27 @@ df = DataFrame(;
     farerrhmat=Float64[],
 )
 
-filename = pwd() * "/results/cube.csv"
+filename = pwd() * "/results/rafalefuel.csv"
 #CSV.write(filename, df)
 ##
 
-for reff in [0.02, 0.0135, 0.01, 0.00675, 0.005]
-    Γ = meshcuboid(1.0, 1.0, 1.0, reff)
+for reff in ["0.13", "0.0175"]#"0.1", "0.07", "0.05", "0.035", "0.025", "0.0175"]
+    meshpath =
+        "/home/jt286/Documents/Geometries/rafale_fuel/rafale10fuel_gmsh" * reff * ".msh"
+    Γ = CompScienceMeshes.read_gmsh_mesh(meshpath)
     space = raviartthomas(Γ)
     println("Size RT ", length(space))
     h = edgeinfo(Γ)[3]
     λ = 10h
     println("Wavelength: ", λ)
     k = 2 * pi / λ
-    #gamma = im * k
-    #alpha = -gamma
-    #beta = -1 / gamma
+    gamma = im * k
+    alpha = -gamma
+    beta = -1 / gamma
 
     op = Maxwell3D.singlelayer(; wavenumber=k)
-    #ϕ = Maxwell3D.singlelayer(; gamma=gamma, alpha=im * 0.0, beta=beta)
-    #A = Maxwell3D.singlelayer(; gamma=gamma, alpha=alpha, beta=0.0 * im)
     Random.seed!(1)
+
     testtree = KMeansTree(
         space.pos, 2; minvalues=100, updateradii=H2Trees.unsafemaxradiusboundingsphere
     )

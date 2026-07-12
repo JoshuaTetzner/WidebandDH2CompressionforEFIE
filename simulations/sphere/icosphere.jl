@@ -32,26 +32,27 @@ df = DataFrame(;
     farerrhmat=Float64[],
 )
 
-filename = pwd() * "/results/cube.csv"
-#CSV.write(filename, df)
+filename = pwd() * "/results/icosphere.csv"
+CSV.write(filename, df)
 ##
 
-for reff in [0.02, 0.0135, 0.01, 0.00675, 0.005]
-    Γ = meshcuboid(1.0, 1.0, 1.0, reff)
+for reff in [25, 50, 100, 200]
+    Γ = meshicosphere(reff, 1.0)
     space = raviartthomas(Γ)
     println("Size RT ", length(space))
     h = edgeinfo(Γ)[3]
     λ = 10h
     println("Wavelength: ", λ)
     k = 2 * pi / λ
-    #gamma = im * k
-    #alpha = -gamma
-    #beta = -1 / gamma
+    gamma = im * k
+    alpha = -gamma
+    beta = -1 / gamma
 
-    op = Maxwell3D.singlelayer(; wavenumber=k)
-    #ϕ = Maxwell3D.singlelayer(; gamma=gamma, alpha=im * 0.0, beta=beta)
+    #op = Maxwell3D.singlelayer(; wavenumber=k)
+    ϕ = Maxwell3D.singlelayer(; gamma=gamma, alpha=im * 0.0, beta=beta)
     #A = Maxwell3D.singlelayer(; gamma=gamma, alpha=alpha, beta=0.0 * im)
     Random.seed!(1)
+
     testtree = KMeansTree(
         space.pos, 2; minvalues=100, updateradii=H2Trees.unsafemaxradiusboundingsphere
     )
@@ -64,5 +65,5 @@ for reff in [0.02, 0.0135, 0.01, 0.00675, 0.005]
 
     tree = H2Trees.BlockTree(testtree, trialtree)
     isnear = NestedCrossApproximation.isnearwideband(k; ηhf=ηhf, γ=γ)
-    simfull(filename, op, space, space, tree, isnear; tol=tol, ηhf=ηhf, γ=γ)
+    simfull(filename, ϕ, space, space, tree, isnear; tol=tol, ηhf=ηhf, γ=γ)
 end
