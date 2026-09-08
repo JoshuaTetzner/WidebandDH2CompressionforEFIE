@@ -30,7 +30,7 @@ filename = pwd() * "/results/spheretime" * method * ".csv"
 #CSV.write(filename, df)
 ##
 
-for reff in [80, 80, 114, 114, 114, 160, 160, 160]#[28, 28, 40, 40, 57, 57, 80, 80, 114, 114, 160, 160]
+for reff in [28, 80, 80, 80, 80, 80, 80, 80]#[28, 28, 40, 40, 57, 57, 80, 80, 114, 114, 160, 160]
     Γ = meshicosphere(reff, 1.0)
     space = raviartthomas(Γ)
     println("Size RT ", length(space))

@@ -59,7 +59,7 @@ weakdeps = ["SparseArrays", "StaticArrays"]
     AdaptStaticArraysExt = "StaticArrays"
 
 [[deps.AdaptiveCrossApproximation]]
-deps = ["BlockSparseMatrices", "LinearAlgebra", "LinearMaps", "OhMyThreads", "Polynomials", "ProgressMeter", "SparseArrays", "StaticArrays"]
+deps = ["BlockSparseMatrices", "LinearAlgebra", "LinearMaps", "OhMyThreads", "Polynomials", "ProgressMeter", "StaticArrays"]
 path = "/home/jt286/.julia/dev/AdaptiveCrossApproximation"
 uuid = "ef3ffb92-1c7b-43b8-a0d7-a7e2ce4fd1e5"
 version = "0.2.1"

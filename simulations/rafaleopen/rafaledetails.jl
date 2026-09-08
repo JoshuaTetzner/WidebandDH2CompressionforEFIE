@@ -31,10 +31,10 @@ df = DataFrame(;
 )
 
 filename = pwd() * "/results/rafaledetails.csv"
-CSV.write(filename, df)
+#CSV.write(filename, df)
 ##
 
-for mult in [10, 40, 160, 640]
+for mult in [10]#, 40, 160, 640]
     ffilename = "rafale_opennose_0.025"
     meshpath = "/home/jt286/Documents/Geometries/rafaleopen/$(ffilename).msh"
     Γ = CompScienceMeshes.read_gmsh_mesh(meshpath)

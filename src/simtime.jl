@@ -52,7 +52,7 @@ function simtime(
             sspace,
             tree;
             testcompressor=NestedCrossApproximation.BottomUp(;
-                factorization=iACA(
+                factorization=IACA(
                     MaximumValue(),
                     AdaptiveCrossApproximation.TreeMimicryPivoting2(
                         tspace.pos,
@@ -62,11 +62,11 @@ function simtime(
                         trial_node_normal_sets,
                         tree.trialcluster,
                     ),
-                    OversampIFNormEst(tol),
+                    AdaptiveCrossApproximation.PhaseExtrapolator(tol),
                 ),
             ),
             trialcompressor=NestedCrossApproximation.BottomUp(;
-                factorization=iACA(
+                factorization=IACA(
                     AdaptiveCrossApproximation.TreeMimicryPivoting2(
                         sspace.pos,
                         tspace.pos,
@@ -76,7 +76,7 @@ function simtime(
                         tree.testcluster,
                     ),
                     MaximumValue(),
-                    OversampIFNormEst(tol),
+                    AdaptiveCrossApproximation.PhaseExtrapolator(tol),
                 ),
             ),
             maxrank=50,
@@ -109,7 +109,7 @@ function simtime(
             sspace,
             tree;
             testcompressor=NestedCrossApproximation.BottomUp(;
-                factorization=iACA(
+                factorization=IACA(
                     MaximumValue(),
                     AdaptiveCrossApproximation.TreeMimicryPivoting2(
                         tspace.pos,
@@ -119,11 +119,11 @@ function simtime(
                         trial_node_normal_sets,
                         tree.trialcluster,
                     ),
-                    OversampIFNormEst(tol),
+                    AdaptiveCrossApproximation.PhaseExtrapolator(tol),
                 ),
             ),
             trialcompressor=NestedCrossApproximation.BottomUp(;
-                factorization=iACA(
+                factorization=IACA(
                     AdaptiveCrossApproximation.TreeMimicryPivoting2(
                         sspace.pos,
                         tspace.pos,
@@ -133,7 +133,7 @@ function simtime(
                         tree.testcluster,
                     ),
                     MaximumValue(),
-                    OversampIFNormEst(tol),
+                    AdaptiveCrossApproximation.PhaseExtrapolator(tol),
                 ),
             ),
             maxrank=50,
