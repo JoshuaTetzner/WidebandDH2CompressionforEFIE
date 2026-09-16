@@ -2,6 +2,7 @@ using CompScienceMeshes
 using BEAST
 using H2Trees
 using ParallelKMeans
+using AdaptiveCrossApproximation
 using NestedCrossApproximation
 using CSV, DataFrames
 using LinearAlgebra
@@ -9,36 +10,27 @@ using Random
 
 BLAS.set_num_threads(1)
 
-include(pwd() * "/src/simfull.jl")
-include(pwd() * "/src/geo.jl")
+include(joinpath(@__DIR__, "..", "..", "src", "simcompare.jl"))
+include(joinpath(@__DIR__, "..", "..", "src", "geometry.jl"))
+include(joinpath(@__DIR__, "..", "..", "src", "geo.jl"))
+
+# Rafale with fuel tanks and a locally refined nozzle: a multiscale geometry, in
+# contrast to the uniformly refined cube and sphere. Same three error-controlled
+# compressions as the sphere, wavelength again at ten edge lengths.
 
 γ = 1.0
 ηhf = 2.0
 tol = 1e-3
+methods = ("hmatrs", "ncaefie", "ncaefieoct")
 
-df = DataFrame(;
-    k=Float64[],
-    gamma=Float64[],
-    etahf=Float64[],
-    tol=Float64[],
-    N=Int[],
-    th2mat=Float64[],
-    thmat=Float64[],
-    tmvh2mat=Float64[],
-    tmvhmat=Float64[],
-    storh2mat=Float64[],
-    storhmat=Float64[],
-    farerrh2mat=Float64[],
-    farerrhmat=Float64[],
-)
-
-filename = pwd() * "/results/rafalefuel.csv"
-#CSV.write(filename, df)
+filename = joinpath(@__DIR__, "..", "..", "results", "rafalefuel.csv")
+CSV.write(filename, compareframe(methods))
 ##
 
-for reff in ["0.13", "0.0175"]#"0.1", "0.07", "0.05", "0.035", "0.025", "0.0175"]
-    meshpath =
-        "/home/jt286/Documents/Geometries/rafale_fuel/rafale10fuel_gmsh" * reff * ".msh"
+for reff in ["0.13", "0.1", "0.07", "0.05", "0.035", "0.025", "0.0175"]
+    meshpath = geometrypath(
+        joinpath(@__DIR__, "geometry"), "rafale10fuel_gmsh" * reff * ".msh"
+    )
     Γ = CompScienceMeshes.read_gmsh_mesh(meshpath)
     space = raviartthomas(Γ)
     println("Size RT ", length(space))
@@ -46,24 +38,10 @@ for reff in ["0.13", "0.0175"]#"0.1", "0.07", "0.05", "0.035", "0.025", "0.0175"
     λ = 10h
     println("Wavelength: ", λ)
     k = 2 * pi / λ
-    gamma = im * k
-    alpha = -gamma
-    beta = -1 / gamma
 
     op = Maxwell3D.singlelayer(; wavenumber=k)
-    Random.seed!(1)
-
-    testtree = KMeansTree(
-        space.pos, 2; minvalues=100, updateradii=H2Trees.unsafemaxradiusboundingsphere
-    )
-    #testtree = TwoNTree(space, 2 / 2^10; minvalues=200)
-    Random.seed!(1)
-    trialtree = KMeansTree(
-        space.pos, 2; minvalues=100, updateradii=H2Trees.unsafemaxradiusboundingsphere
-    )
-    #trialtree = TwoNTree(space, 2 / 2^10; minvalues=200)
-
-    tree = H2Trees.BlockTree(testtree, trialtree)
     isnear = NestedCrossApproximation.isnearwideband(k; ηhf=ηhf, γ=γ)
-    simfull(filename, op, space, space, tree, isnear; tol=tol, ηhf=ηhf, γ=γ)
+    simcompare(
+        filename, op, space, space, isnear; methods=methods, tol=tol, ηhf=ηhf, γ=γ
+    )
 end

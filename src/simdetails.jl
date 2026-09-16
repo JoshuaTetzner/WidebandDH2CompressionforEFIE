@@ -7,13 +7,15 @@ using OhMyThreads
 using CSV, DataFrames
 using StaticArrays
 include("poweriteration.jl")
-include("orientations.jl")
+include("trees.jl")
 
+# `nodetodirsptr` is the node -> direction-range pointer of DirectionalData; it
+# was called `dirptr` before the directional-subdivision rewrite.
 function hflfnodes(fardata)
     Nlf = 0
     Nhf = 0
     maxdirs = 0
-    for node in 1:(length(fardata.dirptr) - 1)
+    for node in 1:(length(fardata.nodetodirsptr) - 1)
         ndirs = NestedCrossApproximation.ndirections(fardata, node)
         ndirs == 0 && continue
         maxdirs = max(maxdirs, ndirs)
@@ -38,23 +40,12 @@ function simdetails(
     γ=1.0,
     scheduler=DynamicScheduler(),
 )
-    tedges, tnormals = rwg_orientations(tspace)
-    sedges, snormals = rwg_orientations(sspace)
-    tedgeids, tnormalids, tnedgeids, tnnormalids = NestedCrossApproximation.basisfunction_orientation_ids(
-        tedges, tnormals
-    )
-    sedgeids, snormalids, snedgeids, snnormalids = NestedCrossApproximation.basisfunction_orientation_ids(
-        sedges, snormals
-    )
-    trial_node_normal_sets, trialnormalids, ntrialnormalids = NestedCrossApproximation.node_normal_orientation_sets(
-        tnormals, tree.trialcluster
-    )
-    test_node_normal_sets, testnormalids, ntestnormalids = NestedCrossApproximation.node_normal_orientation_sets(
-        snormals, tree.testcluster
-    )
-
     testfardata, trialfardata = NestedCrossApproximation.fardata(tree, isnear)
     Nlf, Nhf, maxdirs = hflfnodes(testfardata)
+
+    testpivoting, trialpivoting, convergence = ncapivoting(
+        tspace, sspace, tree; filtered=true, tol=tol
+    )
 
     h2mat = NestedCrossApproximation.PetrovGalerkinNCA(
         op,
@@ -62,32 +53,10 @@ function simdetails(
         sspace,
         tree;
         testcompressor=NestedCrossApproximation.BottomUp(;
-            factorization=iACA(
-                MaximumValue(),
-                AdaptiveCrossApproximation.TreeMimicryPivoting2(
-                    tspace.pos,
-                    sspace.pos,
-                    sedgeids,
-                    trialnormalids,
-                    trial_node_normal_sets,
-                    tree.trialcluster,
-                ),
-                OversampIFNormEst(tol),
-            ),
+            factorization=IACA(MaximumValue(), testpivoting, convergence)
         ),
         trialcompressor=NestedCrossApproximation.BottomUp(;
-            factorization=iACA(
-                AdaptiveCrossApproximation.TreeMimicryPivoting2(
-                    sspace.pos,
-                    tspace.pos,
-                    tedgeids,
-                    testnormalids,
-                    test_node_normal_sets,
-                    tree.testcluster,
-                ),
-                MaximumValue(),
-                OversampIFNormEst(tol),
-            ),
+            factorization=IACA(trialpivoting, MaximumValue(), convergence)
         ),
         maxrank=80,
         isnear=isnear,

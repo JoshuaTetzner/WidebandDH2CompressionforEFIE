@@ -1,25 +1,32 @@
+# Mie validation: EFIE on a PEC sphere, solved with a Calderón-preconditioned
+# GMRES over the wideband DH² compression, radar cross section compared against
+# the analytic Mie series. Writes results/rcs_xy_mie.csv and a .vtu of the surface
+# current density.
+
 using OhMyThreads
 using BEAST, CompScienceMeshes
 using ParallelKMeans
 using H2Trees, AdaptiveCrossApproximation, NestedCrossApproximation, Random
-using JLD2
 using StaticArrays
 using DelimitedFiles
 using LinearAlgebra
+using SphericalScattering
+using WriteVTK
+using Krylov
 
 BLAS.set_num_threads(1)
 
-const c = 2.99792458e8          # speed of lightx
+const c = 2.99792458e8          # speed of light
 const μ = 4π * 1e-7             # permeability
 const ε = 8.8541878176e-12      # permittivity
 
-include(joinpath(@__DIR__, "../..", "src", "loopsstars.jl"))
-include(joinpath(@__DIR__, "../..", "src", "bcmap.jl"))
-include(joinpath(@__DIR__, "../..", "src", "graminverse.jl"))
-include(joinpath(@__DIR__, "../..", "src", "utils.jl"))
+include(joinpath(@__DIR__, "..", "..", "src", "loopsstars.jl"))
+include(joinpath(@__DIR__, "..", "..", "src", "bcmap.jl"))
+include(joinpath(@__DIR__, "..", "..", "src", "graminverse.jl"))
+include(joinpath(@__DIR__, "..", "..", "src", "utils.jl"))
+include(joinpath(@__DIR__, "..", "..", "src", "geo.jl"))
 
 ## -----------------------------------------------------------------------------
-#h = ARGS[1]
 Γ = meshsphere(1.0, 0.017)
 
 @assert length(skeleton(Γ, 0)) - length(skeleton(Γ, 1)) + length(skeleton(Γ, 2)) == 2
@@ -30,7 +37,6 @@ _, _, h = edgeinfo(Γ)
 f = c / λ
 k = 2 * π / λ   # Wavenumber
 ω = c * k     # Angular frequency
-#include(joinpath(@__DIR__, "../..", "src", "manufacturedsolution.jl"))
 
 ## -----------------------------------------------------------------------------
 
@@ -103,21 +109,19 @@ u, stats = Krylov.gmres(
     verbose=1,
     itmax=1000,
 )
-jldsave("sphere$h.jld2"; u)
 ##
 fcr, geo = facecurrents(u, X)
 
 # Visualize solution
 ## -----------------------------------------------------------------------------
 
-using WriteVTK
 cellV = typeof(MeshCell(VTKCellTypes.VTK_TRIANGLE, [2, 4, 3]))[]
 for (ind, face) in enumerate(Γ.faces)
     push!(cellV, MeshCell(VTKCellTypes.VTK_TRIANGLE, [face[1], face[2], face[3]]))
 end
 
 vtk_grid(
-    joinpath(@__DIR__, "../..", "results", "solve_sphere_$(numfunctions(X)).vtu"),
+    joinpath(@__DIR__, "..", "..", "results", "solve_sphere_$(numfunctions(X)).vtu"),
     vertexarray(Γ)',
     cellV,
 ) do vtk
@@ -125,13 +129,9 @@ vtk_grid(
     vtk["real"] = norm.(real.(fcr))
     return vtk["imag"] = norm.(imag.(fcr))
 end
-##
-using JLD2
-using DelimitedFiles
-using StaticArrays
-using SphericalScattering
 
-u = load("/home/jt286/Documents/WidebandNCA/sphere$h.jld2")["u"]
+# Radar cross section against the analytic Mie series
+## -----------------------------------------------------------------------------
 
 E0 = 1.0
 
@@ -157,7 +157,7 @@ relative_error = abs.(sigma .- sigma_anal) ./ max.(abs.(sigma_anal), eps(Float64
 theta_deg = rad2deg.(thetas)
 data = hcat(theta_deg, sigma_dBsm, sigma_dBsm_anal, relative_error)
 
-path = joinpath(@__DIR__, "../..", "results", "rcs_xy_mie.csv")
+path = joinpath(@__DIR__, "..", "..", "results", "rcs_xy_mie.csv")
 open(path, "w") do io
     println(io, "theta_deg,sigma_dBsm,sigma_dBsm_anal,relative_error")
     return writedlm(io, data, ',')

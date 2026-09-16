@@ -1,3 +1,7 @@
 *.vtu
 *.jld2
+
+# Meshes are version-controlled gzip-compressed under
+# simulations/<case>/geometry/. `geometrypath` (src/geometry.jl) expands them on
+# first use; the expanded copies are build artefacts and stay untracked.
 *.msh

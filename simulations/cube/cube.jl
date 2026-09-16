@@ -2,6 +2,7 @@ using CompScienceMeshes
 using BEAST
 using H2Trees
 using ParallelKMeans
+using AdaptiveCrossApproximation
 using NestedCrossApproximation
 using CSV, DataFrames
 using LinearAlgebra
@@ -9,31 +10,20 @@ using Random
 
 BLAS.set_num_threads(1)
 
-include(pwd() * "/src/simfull.jl")
-include(pwd() * "/src/geo.jl")
+include(joinpath(@__DIR__, "..", "..", "src", "simcompare.jl"))
+include(joinpath(@__DIR__, "..", "..", "src", "geo.jl"))
+
+# Unit cube, refined so the wavelength stays at ten edge lengths. All five
+# compressions per discretization, including the two that are not
+# error-controlled -- which is what the cube is here to show.
 
 γ = 1.0
 ηhf = 5.0
 tol = 1e-3
+methods = COMPARE_METHODS
 
-df = DataFrame(;
-    k=Float64[],
-    gamma=Float64[],
-    etahf=Float64[],
-    tol=Float64[],
-    N=Int[],
-    th2mat=Float64[],
-    thmat=Float64[],
-    tmvh2mat=Float64[],
-    tmvhmat=Float64[],
-    storh2mat=Float64[],
-    storhmat=Float64[],
-    farerrh2mat=Float64[],
-    farerrhmat=Float64[],
-)
-
-filename = pwd() * "/results/cube.csv"
-#CSV.write(filename, df)
+filename = joinpath(@__DIR__, "..", "..", "results", "cube.csv")
+CSV.write(filename, compareframe(methods))
 ##
 
 for reff in [0.02, 0.0135, 0.01, 0.00675, 0.005]
@@ -44,25 +34,10 @@ for reff in [0.02, 0.0135, 0.01, 0.00675, 0.005]
     λ = 10h
     println("Wavelength: ", λ)
     k = 2 * pi / λ
-    #gamma = im * k
-    #alpha = -gamma
-    #beta = -1 / gamma
 
     op = Maxwell3D.singlelayer(; wavenumber=k)
-    #ϕ = Maxwell3D.singlelayer(; gamma=gamma, alpha=im * 0.0, beta=beta)
-    #A = Maxwell3D.singlelayer(; gamma=gamma, alpha=alpha, beta=0.0 * im)
-    Random.seed!(1)
-    testtree = KMeansTree(
-        space.pos, 2; minvalues=100, updateradii=H2Trees.unsafemaxradiusboundingsphere
-    )
-    #testtree = TwoNTree(space, 2 / 2^10; minvalues=200)
-    Random.seed!(1)
-    trialtree = KMeansTree(
-        space.pos, 2; minvalues=100, updateradii=H2Trees.unsafemaxradiusboundingsphere
-    )
-    #trialtree = TwoNTree(space, 2 / 2^10; minvalues=200)
-
-    tree = H2Trees.BlockTree(testtree, trialtree)
     isnear = NestedCrossApproximation.isnearwideband(k; ηhf=ηhf, γ=γ)
-    simfull(filename, op, space, space, tree, isnear; tol=tol, ηhf=ηhf, γ=γ)
+    simcompare(
+        filename, op, space, space, isnear; methods=methods, tol=tol, ηhf=ηhf, γ=γ
+    )
 end

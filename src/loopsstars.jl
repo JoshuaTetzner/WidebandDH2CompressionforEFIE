@@ -9,13 +9,6 @@ function getstars(mesh::CompScienceMeshes.AbstractMesh)
     return CompScienceMeshes.connectivity(mesh, edges, sign)
 end
 
-function getloops(mesh::CompScienceMeshes.AbstractMesh)
-    meshboundary = boundary(mesh)
-    edges = setminus(skeleton(mesh, 1), meshboundary)
-    verts = setminus(skeleton(mesh, 0), skeleton(meshboundary, 0))
-    return CompScienceMeshes.connectivity(verts, edges, sign)
-end
-
 function rt_divergence_matrix(space)
     geo = geometry(space)
 
